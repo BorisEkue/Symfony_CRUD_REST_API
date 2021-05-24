@@ -3,6 +3,8 @@
 namespace App\Controller;
 
 use App\Entity\User;
+use App\Repository\UserRepository;
+use App\Services\UserServiceInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -13,6 +15,14 @@ use App\Utils\Utils;
 
 class UserController extends AbstractController
 {
+    private $userRepository;
+    private $userService;
+
+    public function __construct(UserServiceInterface $userService, UserRepository $userRepository)
+    {
+        $this->userRepository = $userRepository;
+        $this->userService = $userService;
+    }
     /**
      * @Route("/user", name="user")
      */
@@ -43,16 +53,13 @@ class UserController extends AbstractController
         $user->setEmail($data['email']);
 
         try
-        {
-            $entityManager = $this->getDoctrine()->getManager();
-            $entityManager->persist($user);
-            $entityManager->flush();
-
-            return $this->json(Utils::httpResponse('url', 200,  $user)); //; new JsonResponse(['status' => 'OK', 'user' => $user->getEmail()], Response::HTTP_CREATED);
+        {            
+            $this->userService->newUser($user);
+            return $this->json(Utils::httpResponse('url', 200,  $user), 200); //; new JsonResponse(['status' => 'OK', 'user' => $user->getEmail()], Response::HTTP_CREATED);
         }
         catch(\Exception $ex)
         {
-            return $this->json(Utils::errorResponse($request->getUri(), 400, $ex->getMessage()));
+            return $this->json(Utils::errorResponse($request->getUri(), 400, $ex->getMessage()), 400);
         }
         
        
@@ -68,9 +75,9 @@ class UserController extends AbstractController
      */
     public function findUserById(Request $request, string $id)
     {
-        $user = $this->getDoctrine()->getRepository(User::class)
-                                    ->find($id);
-
+        
+        $user = $this->userService->getUser($id);
+       
         return $this->json(Utils::httpResponse($request->getUri(), 200, $user));
     }
 
@@ -82,8 +89,7 @@ class UserController extends AbstractController
      */
     public function findAll(Request $request)
     {
-        $users = $this->getDoctrine()->getRepository(User::class)
-                                     ->findAll();
+        $users = $this->userService->getAllUser();
 
         return $this->json(Utils::httpResponse($request->getUri(), 200, $users));
     }
@@ -97,15 +103,13 @@ class UserController extends AbstractController
      */
     public function deleteUser(Request $request, string $id)
     {
-        $user = $this->getDoctrine()->getRepository(User::class)
-                                    ->find($id);
+        
+        $user = $this->userService->getUser($id);
 
-        $manager = $this->getDoctrine()->getManager();
-
+        
         try
         {
-            $manager->remove($user);
-            $manager->flush();
+            $user = $this->userService->deletUser($user);
             return $this->json(Utils::httpResponse($request->getUri(), 200, $user));
         }
         catch(\Exception $ex)
@@ -127,8 +131,7 @@ class UserController extends AbstractController
         $data = json_decode($request->getContent(), true);        
 
         $doctrine = $this->getDoctrine();
-        $user = $doctrine->getRepository(User::class)
-                         ->find($id);
+        $user = $this->userService->getUser($id);
 
 
         if(!empty($data['firstName']))
@@ -143,8 +146,7 @@ class UserController extends AbstractController
         
         try
         {
-            $entityManager = $doctrine->getManager();
-            $entityManager->flush();
+            $this->userService->updateUser($user);
             return $this->json(Utils::httpResponse($request->getUri(), 200, $user));
         }
         catch(\Exception $ex)
